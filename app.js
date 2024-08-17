@@ -1,14 +1,15 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 
 // Set up storage engine
 const storage = multer.diskStorage({
     destination: './uploads/',
-    filename: function(req, file, cb) {
-        cb(null, file.fieldname + '-' + Date.now() + path.extname(file.originalname));
+    filename: function (req, file, cb) {
+        cb(null, file.originalname); // Preserve the original file name
     }
 });
 
@@ -39,7 +40,49 @@ app.post('/upload', (req, res) => {
     });
 });
 
+// Route to manage uploaded files
+app.get('/files', (req, res) => {
+    const directoryPath = path.join(__dirname, 'uploads');
+
+    fs.readdir(directoryPath, (err, files) => {
+        if (err) {
+            return res.status(500).send('Unable to scan files');
+        }
+
+        let fileLinks = files.map(file => {
+            return `
+                <li>
+                    <a href="/uploads/${file}" download="${file}">${file}</a> 
+                    - <a href="/delete/${file}">Delete</a>
+                </li>`;
+        }).join('');
+
+        res.send(`
+            <h2>Uploaded Files</h2>
+            <ul>
+                ${fileLinks}
+            </ul>
+            <a href="/">Go Back to Upload Page</a>
+        `);
+    });
+});
+
+// Serve files from the uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Route to delete a file
+app.get('/delete/:filename', (req, res) => {
+    const filePath = path.join(__dirname, 'uploads', req.params.filename);
+
+    fs.unlink(filePath, (err) => {
+        if (err) {
+            return res.status(500).send('Unable to delete file');
+        }
+
+        res.redirect('/files');
+    });
+});
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
